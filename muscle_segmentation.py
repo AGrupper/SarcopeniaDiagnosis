@@ -1,9 +1,9 @@
-# muscle_segmentation.py
+# muscle_segmentation.py (FIXED VERSION)
 """
 Skeletal muscle segmentation at L3 vertebral level.
-Implements both traditional image processing and deep learning approaches.
+Fixed to work with both manual and automatic L3 detection.
 """
-import csv
+
 import numpy as np
 import SimpleITK as sitk
 import cv2
@@ -12,6 +12,7 @@ from typing import Tuple, Dict, Optional
 from scipy import ndimage
 from skimage import morphology, measure
 import json
+import csv
 
 
 class MuscleSegmentor:
@@ -328,23 +329,74 @@ class MuscleSegmentor:
         return visualization
 
 
-def process_patient(patient_id: str, l3_index: int,
+def get_l3_index(patient_id: str, base_dir: Path = Path(r"C:\CT_Project")) -> Tuple[int, str]:
+    """
+    Get L3 index from available sources (manual or automatic).
+
+    Args:
+        patient_id: Patient identifier
+        base_dir: Project base directory
+
+    Returns:
+        Tuple of (l3_index, source_type)
+    """
+    l3_indices = {}
+    source = "none"
+
+    # First try manual selection
+    manual_csv = base_dir / "meta" / "l3_slices.csv"
+    if manual_csv.exists():
+        with open(manual_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['patient_id'] == patient_id:
+                    return int(row['slice_index']), "manual"
+
+    # Then try automatic detection
+    auto_csv = base_dir / "meta" / "l3_slices_auto.csv"
+    if auto_csv.exists():
+        with open(auto_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['patient_id'] == patient_id:
+                    return int(row['slice_index']), "automatic"
+
+    # If not found, run automatic detection
+    print(f"No L3 index found for {patient_id}. Running automatic detection...")
+    try:
+        from automatic_l3_detection import automatic_l3_detection
+        l3_idx, confidence = automatic_l3_detection(patient_id, base_dir)
+        print(f"Detected L3 at slice {l3_idx} (confidence: {confidence:.1%})")
+        return l3_idx, "automatic (new)"
+    except Exception as e:
+        raise ValueError(f"Could not determine L3 index for {patient_id}: {e}")
+
+
+def process_patient(patient_id: str, l3_index: Optional[int] = None,
                     base_dir: Path = Path(r"C:\CT_Project")) -> Dict:
     """
     Process a patient's CT scan for muscle segmentation at L3.
 
     Args:
         patient_id: Patient identifier
-        l3_index: Pre-selected L3 slice index
+        l3_index: Pre-selected L3 slice index (if None, will auto-detect)
         base_dir: Project base directory
 
     Returns:
         Dictionary with segmentation results and metrics
     """
+    # Get L3 index if not provided
+    if l3_index is None:
+        l3_index, source = get_l3_index(patient_id, base_dir)
+        print(f"Using L3 index {l3_index} from {source}")
+
     # Paths
     volume_path = base_dir / "data_preproc" / f"{patient_id}_iso_norm.nii.gz"
     output_dir = base_dir / "results" / patient_id
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not volume_path.exists():
+        raise FileNotFoundError(f"Preprocessed volume not found: {volume_path}")
 
     # Initialize segmentor
     segmentor = MuscleSegmentor(volume_path)
@@ -367,7 +419,6 @@ def process_patient(patient_id: str, l3_index: int,
         json.dump(metrics, f, indent=2)
 
     # 4. Save metrics to CSV for easy viewing
-    import csv
     with open(output_dir / "muscle_metrics.csv", 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=list(metrics.keys()))
         writer.writeheader()
@@ -397,19 +448,8 @@ if __name__ == "__main__":
     else:
         patient_id = "patient01"
 
-    # Load L3 index from your CSV
-    csv_path = Path(r"C:\CT_Project\meta\l3_slices.csv")
-    l3_indices = {}
-
-    if csv_path.exists():
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                l3_indices[row['patient_id']] = int(row['slice_index'])
-
-    if patient_id in l3_indices:
-        l3_idx = l3_indices[patient_id]
-        results = process_patient(patient_id, l3_idx)
+    try:
+        results = process_patient(patient_id)
         print(f"\nResults saved to: {results['output_dir']}")
-    else:
-        print(f"No L3 index found for {patient_id}. Please run pick_l3.py first.")
+    except Exception as e:
+        print(f"Error: {e}")
