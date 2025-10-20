@@ -108,7 +108,8 @@ class MuscleSegmentor:
         muscle_mask = muscle_mask & body_mask
 
         # Remove small objects (noise)
-        muscle_mask = morphology.remove_small_objects(muscle_mask, min_size=50)
+        if np.any(muscle_mask):  # Only if there are muscle pixels
+            muscle_mask = morphology.remove_small_objects(muscle_mask.astype(bool), min_size=50).astype(np.uint8)
 
         return muscle_mask.astype(np.uint8)
 
@@ -331,7 +332,7 @@ class MuscleSegmentor:
 
 def get_l3_index(patient_id: str, base_dir: Path = Path(r"C:\CT_Project")) -> Tuple[int, str]:
     """
-    Get L3 index from available sources (manual or automatic).
+    Get L3 index from available sources (manual override first, then others).
 
     Args:
         patient_id: Patient identifier
@@ -343,7 +344,16 @@ def get_l3_index(patient_id: str, base_dir: Path = Path(r"C:\CT_Project")) -> Tu
     l3_indices = {}
     source = "none"
 
-    # First try manual selection
+    # FIRST try manual override file
+    manual_override_csv = base_dir / "meta" / "l3_slices_manual.csv"
+    if manual_override_csv.exists():
+        with open(manual_override_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['patient_id'] == patient_id:
+                    return int(row['slice_index']), "manual override"
+
+    # Then try original manual selection
     manual_csv = base_dir / "meta" / "l3_slices.csv"
     if manual_csv.exists():
         with open(manual_csv, 'r', encoding='utf-8') as f:
@@ -406,8 +416,14 @@ def process_patient(patient_id: str, l3_index: Optional[int] = None,
 
     # Save results
     # 1. Save muscle mask as NIfTI
-    mask_img = sitk.GetImageFromArray(muscle_mask[np.newaxis, :, :])
-    mask_img.CopyInformation(segmentor.image)
+    # Create a 3D volume with just the L3 slice
+    mask_3d = np.zeros((1, muscle_mask.shape[0], muscle_mask.shape[1]), dtype=np.uint8)
+    mask_3d[0, :, :] = muscle_mask
+
+    mask_img = sitk.GetImageFromArray(mask_3d)
+    # Set spacing and origin for the single slice
+    mask_img.SetSpacing((segmentor.spacing[0], segmentor.spacing[1], segmentor.spacing[2]))
+    mask_img.SetOrigin(segmentor.image.GetOrigin())
     sitk.WriteImage(mask_img, str(output_dir / f"muscle_mask_l3.nii.gz"))
 
     # 2. Save visualization
