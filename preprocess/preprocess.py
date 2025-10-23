@@ -1,5 +1,6 @@
 import SimpleITK as sitk
 from pathlib import Path
+from patients import patients
 
 DATA_NIFTI = Path(r"C:\CT_Project\data_nifti")
 DATA_PRE   = Path(r"C:\CT_Project\data_preproc")
@@ -34,7 +35,7 @@ def preprocess(in_path: Path, out_path: Path, hu_min=-150, hu_max=300, iso=(1.0,
     sitk.WriteImage(out_img, str(out_path))
 
 if __name__ == "__main__":
-    for pid in ["patient01", "patient02"]:
+    for pid in patients:
         src = pick_largest_nifti(pid)
         dst = DATA_PRE / f"{pid}_iso_norm.nii.gz"
         print(f"[{pid}] using source:", src.name)

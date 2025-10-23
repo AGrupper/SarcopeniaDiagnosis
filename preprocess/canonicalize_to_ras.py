@@ -1,5 +1,6 @@
 from pathlib import Path
 import nibabel as nib
+from patients import patients
 
 BASE = Path(r"C:\CT_Project")
 SRC  = BASE/"data_preproc"
@@ -11,7 +12,7 @@ def to_ras(src: Path, dst: Path):
     nib.save(ras, str(dst))
     return img.affine, ras.affine
 
-for pid in ["patient01","patient02"]:
+for pid in patients:
     s = SRC/f"{pid}_iso_norm.nii.gz"
     d = DST/f"{pid}_iso_norm_ras.nii.gz"
     a0,a1 = to_ras(s,d)

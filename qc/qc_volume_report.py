@@ -1,5 +1,6 @@
 from pathlib import Path
 import nibabel as nib, numpy as np, json
+from patients import patients
 
 BASE = Path(r"C:\CT_Project")
 PRE  = BASE / "data_preproc"
@@ -38,7 +39,7 @@ def report(nii: Path):
     }
 
 if __name__ == "__main__":
-    for pid in ["patient01","patient02"]:
+    for pid in patients:
         p = PRE / f"{pid}_iso_norm.nii.gz"
         R = report(p)
         print(json.dumps({k: py(v) for k, v in R.items()}, ensure_ascii=False))

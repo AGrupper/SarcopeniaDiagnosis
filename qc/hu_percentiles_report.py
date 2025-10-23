@@ -1,5 +1,6 @@
 from pathlib import Path
 import nibabel as nib, numpy as np, json
+from patients import patients
 
 BASE = Path(r"C:\CT_Project")
 PRE  = BASE/"data_preproc_ras"  # להשתמש ב-RAS אם עשית שלב 1; אחרת data_preproc
@@ -14,5 +15,5 @@ def stats(pid):
     qs = np.percentile(hu, [0.5, 1, 5, 25, 50, 75, 95, 99, 99.5]).round(1).tolist()
     return {"patient": pid, "HU_min_max": [float(hu.min()), float(hu.max())], "percentiles": qs}
 
-for pid in ["patient01","patient02"]:
+for pid in patients:
     print(json.dumps(stats(pid), ensure_ascii=False))

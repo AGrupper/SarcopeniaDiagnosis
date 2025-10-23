@@ -2,6 +2,7 @@
 from pathlib import Path, PurePosixPath
 import csv, json, nibabel as nib
 import numpy as np
+from patients import patients
 
 BASE = Path(r"C:\CT_Project")
 PRE_RAS = BASE/"data_preproc_ras"
@@ -19,7 +20,7 @@ def py(v):
     return v
 
 rows=[]
-for pid in ["patient01","patient02"]:
+for pid in patients:
     p = PRE_RAS/f"{pid}_iso_norm_ras.nii.gz"
     if not p.exists():
         p = PRE/f"{pid}_iso_norm.nii.gz"
